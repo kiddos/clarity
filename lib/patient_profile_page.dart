@@ -10,7 +10,7 @@ import 'patient_medication_page.dart';
 import 'patient_condition_page.dart';
 import 'patient_allergy_page.dart';
 import 'patient_vaccination_page.dart';
-import 'patient_encounter_page.dart';
+import 'patient_diagnostic_report_page.dart';
 
 class PatientProfilePage extends StatefulWidget {
   const PatientProfilePage({
@@ -41,6 +41,7 @@ class _PatientProfilePageState extends State<PatientProfilePage> {
   Observation? respiratoryRate;
   Observation? oxygenSaturation;
   Observation? bmi;
+  List<Encounter> _encounter = [];
 
   @override
   void initState() {
@@ -49,7 +50,7 @@ class _PatientProfilePageState extends State<PatientProfilePage> {
     _fetchData();
   }
 
-  void _fetchPatientData(String patientId, String accessToken) async {
+  Future<void> _fetchPatientData(String patientId, String accessToken) async {
     final String query = "${widget.requestUrl}/Patient/$patientId";
     try {
       final response = await http.get(
@@ -71,7 +72,7 @@ class _PatientProfilePageState extends State<PatientProfilePage> {
     }
   }
 
-  void _fetchFhirUser(String idToken, String accessToken) async {
+  Future<void> _fetchFhirUser(String idToken, String accessToken) async {
     List<String> parts = idToken.split(".");
     if (parts.length < 2) {
       return;
@@ -117,8 +118,9 @@ class _PatientProfilePageState extends State<PatientProfilePage> {
     final accessToken = widget.tokenData['access_token'];
     final idToken = widget.tokenData['id_token'];
     if (patient != null && accessToken != null) {
-      _fetchPatientData(patient, accessToken);
-      _fetchFhirUser(idToken, accessToken);
+      await _fetchPatientData(patient, accessToken);
+      await _fetchFhirUser(idToken, accessToken);
+      await _fetchEncounter(patient, accessToken);
       final codes = [
         '8302-2', // height
         '29463-7', // weight
@@ -165,6 +167,33 @@ class _PatientProfilePageState extends State<PatientProfilePage> {
       ];
       for (int i = 0; i < codes.length; ++i) {
         _fetchPatientObservation(patient, accessToken, codes[i], callbacks[i]);
+      }
+    }
+  }
+
+  Future<void> _fetchEncounter(String patient, String accessToken) async {
+    final url = "${widget.requestUrl}/Encounter?patient=$patient&_sort=-date";
+    final response = await http.get(
+      Uri.parse(url),
+      headers: {
+        'Authorization': 'Bearer $accessToken',
+        'Accept': 'application/fhir+json',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      try {
+        final data = json.decode(response.body);
+        final bundle = Bundle.fromJson(data);
+        List<Encounter> encounters = [];
+        bundle.entry?.forEach((entry) {
+          if (entry.resource is Encounter) {
+            encounters.add(entry.resource as Encounter);
+          }
+        });
+        setState(() => _encounter = encounters);
+      } catch (e) {
+        log.e('fail to fetch enounter', error: e);
       }
     }
   }
@@ -284,6 +313,8 @@ class _PatientProfilePageState extends State<PatientProfilePage> {
           // Health Data Widgets
           _buildHealthDataList(primaryGreen, lightGreen),
           const SizedBox(height: 20),
+
+          _buildEnounterListView(),
         ],
       ),
     );
@@ -347,7 +378,7 @@ class _PatientProfilePageState extends State<PatientProfilePage> {
   void _handleEncounter() {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => PatientEncounterPage(
+        builder: (_) => PatientDiagnosticReportPage(
           requestUrl: widget.requestUrl,
           tokenData: widget.tokenData,
         ),
@@ -391,7 +422,7 @@ class _PatientProfilePageState extends State<PatientProfilePage> {
         ),
         _IconCard(
           icon: Icons.event_note_outlined,
-          label: 'Events',
+          label: 'Report',
           color: primaryGreen,
           onTap: _handleEncounter,
         ),
@@ -638,6 +669,78 @@ class _PatientProfilePageState extends State<PatientProfilePage> {
             unit: bmi?.valueQuantity?.unit ?? 'N/A',
             textColor: Colors.black,
           ),
+      ],
+    );
+  }
+
+  Widget _buildEnounterListView() {
+    final encounterCards = _encounter.map((e) {
+      // 1. Visit Class (Inpatient, Outpatient, Emergency, etc.)
+      String visitClass = e.class_.display ?? 'General visit';
+
+      // 2. Visit Type (Detailed reason or specialty)
+      String visitType = e.type?[0].text ?? "Standard Consultation";
+
+      // 3. Period (Start and End dates)
+      String startDate = formatDateTime(e.period?.start);
+
+      // 4. Status (planned, arrived, triaged, in-progress, finished)
+      String status = e.status.toString();
+
+      return Card(
+        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        child: ListTile(
+          leading: CircleAvatar(
+            backgroundColor: Colors.indigo.shade50,
+            child: const Icon(Icons.event_note, color: Colors.indigo),
+          ),
+          title: Text(visitType,
+              style: const TextStyle(fontWeight: FontWeight.bold)),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text("Class: $visitClass"),
+              Text("Date: $startDate"),
+            ],
+          ),
+          trailing: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: status == 'finished'
+                  ? Colors.green.shade100
+                  : Colors.blue.shade100,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              status.toUpperCase(),
+              style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                  color: status == 'finished'
+                      ? Colors.green.shade900
+                      : Colors.blue.shade900),
+            ),
+          ),
+        ),
+      );
+    });
+    return Column(
+      children: [
+        Row(
+          children: [
+            Image.asset('assets/images/icons/encounter.png',
+                width: 26, height: 26),
+            const SizedBox(width: 10),
+            const Text(
+              'Encounter',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        ...encounterCards,
       ],
     );
   }
