@@ -1,5 +1,5 @@
 name: clarity
-description: "A new Flutter project."
+description: "App to view FHIR data via SMART on FHIR standard written in Flutter"
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.0.0+2
+version: 1.0.0+3
 
 environment:
   sdk: ^3.5.4
@@ -42,6 +42,7 @@ dependencies:
   flutter_web_auth_2: ^4.1.0
   intl: ^0.20.2
   logger: ^2.6.2
+  timelines_plus: ^1.0.8
 
 dev_dependencies:
   flutter_test:

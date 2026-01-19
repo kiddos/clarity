@@ -2,6 +2,7 @@ import 'package:fhir/r4.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
+import 'package:timelines_plus/timelines_plus.dart';
 import 'dart:convert';
 
 import 'log.dart';
@@ -314,7 +315,7 @@ class _PatientProfilePageState extends State<PatientProfilePage> {
           _buildHealthDataList(primaryGreen, lightGreen),
           const SizedBox(height: 20),
 
-          _buildEnounterListView(),
+          _buildEncounterListView(),
         ],
       ),
     );
@@ -673,58 +674,9 @@ class _PatientProfilePageState extends State<PatientProfilePage> {
     );
   }
 
-  Widget _buildEnounterListView() {
-    final encounterCards = _encounter.map((e) {
-      // 1. Visit Class (Inpatient, Outpatient, Emergency, etc.)
-      String visitClass = e.class_.display ?? 'General visit';
-
-      // 2. Visit Type (Detailed reason or specialty)
-      String visitType = e.type?[0].text ?? "Standard Consultation";
-
-      // 3. Period (Start and End dates)
-      String startDate = formatDateTime(e.period?.start);
-
-      // 4. Status (planned, arrived, triaged, in-progress, finished)
-      String status = e.status.toString();
-
-      return Card(
-        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        child: ListTile(
-          leading: CircleAvatar(
-            backgroundColor: Colors.indigo.shade50,
-            child: const Icon(Icons.event_note, color: Colors.indigo),
-          ),
-          title: Text(visitType,
-              style: const TextStyle(fontWeight: FontWeight.bold)),
-          subtitle: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text("Class: $visitClass"),
-              Text("Date: $startDate"),
-            ],
-          ),
-          trailing: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: status == 'finished'
-                  ? Colors.green.shade100
-                  : Colors.blue.shade100,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Text(
-              status.toUpperCase(),
-              style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                  color: status == 'finished'
-                      ? Colors.green.shade900
-                      : Colors.blue.shade900),
-            ),
-          ),
-        ),
-      );
-    });
+  Widget _buildEncounterListView() {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
@@ -733,15 +685,86 @@ class _PatientProfilePageState extends State<PatientProfilePage> {
             const SizedBox(width: 10),
             const Text(
               'Encounter',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
           ],
         ),
-        ...encounterCards,
+        const SizedBox(height: 16),
+        FixedTimeline.tileBuilder(
+          theme: TimelineThemeData(
+            nodePosition: 0, // Aligns the line to the left
+            connectorTheme: ConnectorThemeData(
+              thickness: 3.0,
+              color: Colors.indigo.shade100,
+            ),
+            indicatorTheme: const IndicatorThemeData(
+              size: 20.0,
+            ),
+          ),
+          builder: TimelineTileBuilder.connected(
+            itemCount: _encounter.length,
+            contentsBuilder: (context, index) {
+              final e = _encounter[index];
+              String visitClass = e.class_.display ?? 'General visit';
+              String visitType = e.type?[0].text ?? "Standard Consultation";
+              String startDate = formatDateTime(e.period?.start);
+              String status = e.status.toString();
+
+              return Padding(
+                padding: const EdgeInsets.only(left: 12.0, bottom: 20.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(visitType,
+                            style: const TextStyle(
+                                fontWeight: FontWeight.bold, fontSize: 16)),
+                        _buildStatusChip(status),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text("Class: $visitClass",
+                        style: TextStyle(color: Colors.grey.shade700)),
+                    Text("Date: $startDate",
+                        style: TextStyle(color: Colors.grey.shade700)),
+                  ],
+                ),
+              );
+            },
+            indicatorBuilder: (context, index) {
+              return const DotIndicator(
+                color: Colors.indigo,
+                child: Icon(Icons.event_note, size: 12, color: Colors.white),
+              );
+            },
+            connectorBuilder: (context, index, type) {
+              return SolidLineConnector(color: Colors.indigo.shade100);
+            },
+          ),
+        ),
       ],
+    );
+  }
+
+  // Helper for the status tag
+  Widget _buildStatusChip(String status) {
+    bool isFinished = status == 'finished';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: isFinished ? Colors.green.shade100 : Colors.blue.shade100,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        status.toUpperCase(),
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+          color: isFinished ? Colors.green.shade900 : Colors.blue.shade900,
+        ),
+      ),
     );
   }
 }
