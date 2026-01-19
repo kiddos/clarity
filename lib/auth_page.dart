@@ -19,13 +19,12 @@ class LaunchOption {
 
 class _AuthPageState extends State<AuthPage> {
   final List<String> _defaultUrls = [
-    // 'http://192.168.0.198:4013/v/r4',
     'https://thas.mohw.gov.tw/v/r4'
   ];
 
   final List<LaunchOption> _launchOptions = [
-    LaunchOption('eyJoIjoiMSJ9', 'Practitioner'),
-    LaunchOption('eyJrIjoiMSIsImoiOiIxIn0', 'Patient'),
+    LaunchOption('eyJoIjoiMSJ9', 'Practitioner'), // base64 decode: {"h":"1"}
+    LaunchOption('eyJrIjoiMSIsImoiOiIxIn0', 'Patient'), // base64 decode: {"k":"1","j":"1"}
   ];
 
   List<String> _customUrls = [];
@@ -118,7 +117,7 @@ class _AuthPageState extends State<AuthPage> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
             _buildUrlDropdown(),
-            // _buildLaunchSelection(),
+            _buildLaunchSelection(),
             const SizedBox(height: 80),
             ElevatedButton(
               child: const Text('Authenticate'),
@@ -167,23 +166,25 @@ class _AuthPageState extends State<AuthPage> {
     );
   }
 
-  // Widget _buildLaunchSelection() {
-  //   return Padding(
-  //     padding: const EdgeInsets.symmetric(horizontal: 10),
-  //     child: Column(
-  //       children: _launchOptions.map(
-  //         (option) {
-  //           return RadioListTile<String>(
-  //             value: option.launch,
-  //             groupValue: _selectedLaunch,
-  //             title: Text(option.display),
-  //             onChanged: (String? value) {
-  //               setState(() => _selectedLaunch = value);
-  //             },
-  //           );
-  //         },
-  //       ).toList(),
-  //     ),
-  //   );
-  // }
+  Widget _buildLaunchSelection() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 40),
+      child: DropdownButton<String>(
+        value: _selectedLaunch,
+        isExpanded: true,
+        hint: const Text('Select a launch option'),
+        items: _launchOptions.map((option) {
+          return DropdownMenuItem<String>(
+            value: option.launch,
+            child: Text(option.display),
+          );
+        }).toList(),
+        onChanged: (String? newValue) {
+          setState(() {
+            _selectedLaunch = newValue;
+          });
+        },
+      ),
+    );
+  }
 }
