@@ -739,9 +739,15 @@ class _PatientProfilePageState extends State<PatientProfilePage> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(visitType,
+                        Flexible(
+                          child: Text(
+                            visitType,
                             style: const TextStyle(
-                                fontWeight: FontWeight.bold, fontSize: 16)),
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ),
                         _buildStatusChip(status),
                       ],
                     ),
