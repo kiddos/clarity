@@ -883,7 +883,6 @@ class _HealthDataTile extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
-          // Arrow
           const Icon(Icons.chevron_right, color: Colors.black38),
         ],
       ),
