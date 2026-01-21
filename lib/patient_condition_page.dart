@@ -17,28 +17,81 @@ class PatientConditionPage extends StatefulWidget {
 }
 
 class _PatientConditionPageState extends State<PatientConditionPage> {
-  Future<List<dynamic>> fetchConditions() async {
+  final ScrollController _scrollController = ScrollController();
+
+  final List<dynamic> _conditions = [];
+  String? _nextPageUrl;
+  bool _isLoading = false;
+  bool _hasMore = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchNextPage(initial: true);
+
+    // Listener to detect when user scrolls near the bottom
+    _scrollController.addListener(() {
+      if (_scrollController.position.pixels >=
+          _scrollController.position.maxScrollExtent * 0.9) {
+        if (!_isLoading && _hasMore) {
+          _fetchNextPage();
+        }
+      }
+    });
+  }
+
+  Future<void> _fetchNextPage({bool initial = false}) async {
+    if (_isLoading) return;
+
+    setState(() => _isLoading = true);
+
     final patient = widget.tokenData['patient'];
     final accessToken = widget.tokenData['access_token'];
-    // Fetching conditions for the patient
-    final url = "${widget.requestUrl}/Condition?patient=$patient";
-    final response = await http.get(
-      Uri.parse(url),
-      headers: {
-        'Authorization': 'Bearer $accessToken',
-        'Accept': 'application/fhir+json',
-      },
-    );
 
-    if (response.statusCode == 200) {
-      final data = json.decode(response.body);
-      return data['entry'] ?? [];
-    } else {
-      throw Exception('Failed to load condition data');
+    // FHIR Standard search or use the 'next' link from previous response
+    final url = initial
+        ? "${widget.requestUrl}/Condition?patient=$patient&_count=10"
+        : _nextPageUrl;
+
+    if (url == null) {
+      setState(() {
+        _isLoading = false;
+        _hasMore = false;
+      });
+      return;
+    }
+
+    try {
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {
+          'Authorization': 'Bearer $accessToken',
+          'Accept': 'application/fhir+json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final List<dynamic> newEntries = data['entry'] ?? [];
+
+        // Find the 'next' relation in the links array for pagination
+        final links = data['link'] as List<dynamic>?;
+        final nextLink = links?.firstWhere((l) => l['relation'] == 'next',
+            orElse: () => null);
+
+        setState(() {
+          _conditions.addAll(newEntries);
+          _nextPageUrl = nextLink?['url'];
+          _hasMore = _nextPageUrl != null;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      setState(() => _isLoading = false);
+      debugPrint("Error fetching conditions: $e");
     }
   }
 
-  // Helper to determine status color
   Color _getStatusColor(String status) {
     switch (status.toLowerCase()) {
       case 'active':
@@ -53,84 +106,84 @@ class _PatientConditionPageState extends State<PatientConditionPage> {
   }
 
   @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text("Medical Conditions")),
-      body: FutureBuilder<List<dynamic>>(
-        future: fetchConditions(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          } else if (snapshot.hasError) {
-            return Center(child: Text("Error: ${snapshot.error}"));
-          } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return const Center(child: Text("No medical conditions recorded."));
-          }
+      body: _conditions.isEmpty && _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _buildListView(),
+    );
+  }
 
-          return ListView.builder(
-            itemCount: snapshot.data!.length,
-            itemBuilder: (context, index) {
-              final resource = snapshot.data![index]['resource'];
+  ListView _buildListView() {
+    return ListView.builder(
+      controller: _scrollController,
+      itemCount: _conditions.length + (_hasMore ? 1 : 0),
+      itemBuilder: (context, index) {
+        // Show loader at the bottom if more data is coming
+        if (index == _conditions.length) {
+          return const Padding(
+            padding: EdgeInsets.all(16.0),
+            child: Center(child: CircularProgressIndicator()),
+          );
+        }
 
-              // Extracting Condition Name
-              String conditionName = resource['code']?['text'] ??
-                  resource['code']?['coding']?[0]['display'] ??
-                  "Unspecified Diagnosis";
+        final resource = _conditions[index]['resource'];
 
-              // Extracting Clinical Status (active, resolved, inactive, etc.)
-              String status = resource['clinicalStatus']?['coding']?[0]
-                      ['code'] ??
-                  "unknown";
+        String conditionName = resource['code']?['text'] ??
+            resource['code']?['coding']?[0]['display'] ??
+            "Unspecified Diagnosis";
 
-              // Extracting Recorded Date
-              String recordedDate = resource['recordedDate']?.split('T')[0] ??
-                  "Date not recorded";
+        String status =
+            resource['clinicalStatus']?['coding']?[0]['code'] ?? "unknown";
 
-              // Extracting Severity (if available)
-              String severity =
-                  resource['severity']?['coding']?[0]['display'] ?? "";
+        String recordedDate =
+            resource['recordedDate']?.split('T')[0] ?? "Date not recorded";
 
-              return Card(
-                elevation: 3,
-                margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10)),
-                child: ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: _getStatusColor(status).withOpacity(0.2),
-                    child: Icon(Icons.healing, color: _getStatusColor(status)),
-                  ),
-                  title: Text(conditionName,
-                      style: const TextStyle(fontWeight: FontWeight.bold)),
-                  subtitle: Text("Recorded on: $recordedDate"),
-                  trailing: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        status.toUpperCase(),
-                        style: TextStyle(
-                          color: _getStatusColor(status),
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12,
-                        ),
-                      ),
-                      if (severity.isNotEmpty)
-                        Text(
-                          severity,
-                          style: const TextStyle(
-                            fontSize: 10,
-                            fontStyle: FontStyle.italic,
-                          ),
-                        ),
-                    ],
+        String severity = resource['severity']?['coding']?[0]['display'] ?? "";
+
+        return Card(
+          elevation: 3,
+          margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          child: ListTile(
+            leading: CircleAvatar(
+              backgroundColor: _getStatusColor(status).withValues(alpha: 0.2),
+              child: Icon(Icons.healing, color: _getStatusColor(status)),
+            ),
+            title: Text(conditionName,
+                style: const TextStyle(fontWeight: FontWeight.bold)),
+            subtitle: Text("Recorded on: $recordedDate"),
+            trailing: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  status.toUpperCase(),
+                  style: TextStyle(
+                    color: _getStatusColor(status),
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
                   ),
                 ),
-              );
-            },
-          );
-        },
-      ),
+                if (severity.isNotEmpty)
+                  Text(
+                    severity,
+                    style: const TextStyle(
+                        fontSize: 10, fontStyle: FontStyle.italic),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }
