@@ -324,7 +324,22 @@ class _PatientProfilePageState extends State<PatientProfilePage> {
   void _handleLab() {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => PatientLabPage(
+        builder: (_) => PatientObservationPage(
+          title: 'Patient Lab Results',
+          category: 'laboratory',
+          requestUrl: widget.requestUrl,
+          tokenData: widget.tokenData,
+        ),
+      ),
+    );
+  }
+
+  void _handleVital() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => PatientObservationPage(
+          title: 'Patient Vital signs',
+          category: 'vital-signs',
           requestUrl: widget.requestUrl,
           tokenData: widget.tokenData,
         ),
@@ -396,6 +411,12 @@ class _PatientProfilePageState extends State<PatientProfilePage> {
           label: 'Labs',
           color: primaryGreen,
           onTap: _handleLab,
+        ),
+        _IconCard(
+          icon: Icons.assignment_ind,
+          label: 'Vital',
+          color: primaryGreen,
+          onTap: _handleVital,
         ),
         _IconCard(
           icon: Icons.medication_outlined,

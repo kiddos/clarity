@@ -2,21 +2,25 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
-class PatientLabPage extends StatefulWidget {
-  const PatientLabPage({
+class PatientObservationPage extends StatefulWidget {
+  const PatientObservationPage({
     super.key,
+    required this.title,
+    required this.category,
     required this.requestUrl,
     required this.tokenData,
   });
 
+  final String title;
+  final String category;
   final String requestUrl;
   final Map<String, dynamic> tokenData;
 
   @override
-  State<PatientLabPage> createState() => _PatientLabPageState();
+  State<PatientObservationPage> createState() => _PatientObservationPageState();
 }
 
-class _PatientLabPageState extends State<PatientLabPage> {
+class _PatientObservationPageState extends State<PatientObservationPage> {
   final ScrollController _scrollController = ScrollController();
 
   final List<dynamic> _labResults = [];
@@ -51,7 +55,7 @@ class _PatientLabPageState extends State<PatientLabPage> {
 
     // Use the "next" link if available, otherwise construct the initial search URL
     final url = initial
-        ? "${widget.requestUrl}/Observation?patient=$patient&category=laboratory&_sort=-date&_count=10"
+        ? "${widget.requestUrl}/Observation?patient=$patient&category=${widget.category}&_sort=-date&_count=10"
         : _nextPageUrl;
 
     if (url == null) {
@@ -102,7 +106,7 @@ class _PatientLabPageState extends State<PatientLabPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Patient Lab Results")),
+      appBar: AppBar(title: Text(widget.title)),
       body: _labResults.isEmpty && _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _buildListView(),
