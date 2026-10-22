@@ -20,8 +20,9 @@ Future<Map<String, dynamic>?> authenticate(final String baseUrl, final String la
   try {
     log.i('auth url: $authUrl');
     final result = await FlutterWebAuth2.authenticate(
-        url: authUrl, callbackUrlScheme: kCallbackScheme,
-        options: const FlutterWebAuth2Options(intentFlags: ephemeralIntentFlags));
+        url: authUrl,
+        callbackUrlScheme: kCallbackScheme,
+        options: const FlutterWebAuth2Options(preferEphemeral: true));
     log.i('result: $result');
     final uri = Uri.parse(result);
     final authCode = uri.queryParameters['code'];

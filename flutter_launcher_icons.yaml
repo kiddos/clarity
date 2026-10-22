@@ -1,0 +1,19 @@
+flutter_launcher_icons:
+  image_path: "icon/clarity_logo_new.png"
+  android: true
+  ios: true
+  min_sdk_android: 21
+  adaptive_icon_background: "#003940"
+  adaptive_icon_foreground: "icon/clarity_logo_new.png"
+  web:
+    generate: true
+    image_path: "icon/clarity_logo_new.png"
+    background_color: "#003940"
+    theme_color: "#003940"
+  windows:
+    generate: true
+    image_path: "icon/clarity_logo_new.png"
+    icon_size: 48
+  macos:
+    generate: true
+    image_path: "icon/clarity_logo_new.png"
