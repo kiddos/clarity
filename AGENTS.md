@@ -8,7 +8,9 @@ Welcome to the **Clarity** codebase. This guide is tailored for AI agents and hu
 
 **Clarity** is an open-source Personal Health Record (PHR) mobile application built with Flutter. It implements the **HL7® FHIR® R4** standard and **SMART on FHIR** OAuth 2.0 authorization framework to allow patients and practitioners to securely connect directly to healthcare FHIR servers and access aggregated clinical records in real time.
 
-- **Target Platforms:** Android (primary, published on Google Play as `app.kiddos.fhir.clarity`), iOS, Web, macOS, Linux, Windows.
+- **App ID / Namespace:** `app.kiddos.fhir.clarity`
+- **Current Version:** `1.0.1+5`
+- **Target Platforms:** Android (primary, published on Google Play), iOS, Web, macOS, Linux, Windows.
 - **Flutter / Dart SDK:** Dart SDK `^3.5.4` (Flutter 3.x+).
 - **Domain:** HealthTech / Medical Informatics / SMART on FHIR / HL7 FHIR R4.
 
@@ -23,7 +25,7 @@ Welcome to the **Clarity** codebase. This guide is tailored for AI agents and hu
                       |   lib/auth.dart / auth_page |
                       +--------------+--------------+
                                      |
-                       Token Data & FHIR Base URL
+                        Token Data & FHIR Base URL
                                      v
                       +-----------------------------+
                       |     Patient Profile Page    |
@@ -39,7 +41,8 @@ Welcome to the **Clarity** codebase. This guide is tailored for AI agents and hu
     v              v            v         v             v               v
   Labs         Vitals      Medications Conditions   Allergies      Vaccines / Reports
 (patient_lab) (patient_lab)  (patient_  (patient_    (patient_      (patient_vaccination /
-                            medication) condition)   allergy)      patient_diagnostic_report)
+  category=     category=   medication) condition)   allergy)      patient_diagnostic_report)
+ laboratory   vital-signs
 ```
 
 ### Authentication Flow (SMART on FHIR)
@@ -69,20 +72,24 @@ Welcome to the **Clarity** codebase. This guide is tailored for AI agents and hu
 │   ├── auth.dart                          # OAuth2 auth URL builder & token exchange
 │   ├── auth_page.dart                     # Server picker, launch option picker, auth trigger
 │   ├── patient_profile_page.dart          # Main dashboard (demographics, vitals, encounters)
-│   ├── patient_lab_page.dart              # Lab results & vital signs paginated list
+│   ├── patient_lab_page.dart              # Lab results & vital signs paginated list (PatientObservationPage)
 │   ├── patient_medication_page.dart       # MedicationRequest list with pagination
 │   ├── patient_condition_page.dart        # Medical conditions & problem list with pagination
 │   ├── patient_allergy_page.dart          # Allergies & intolerances with criticality tags
 │   ├── patient_vaccination_page.dart      # Immunization history with pagination
 │   └── patient_diagnostic_report_page.dart# Diagnostic reports with pagination
 ├── assets/
-│   └── images/icons/                      # Custom medical icons (lungs, oxygen, bmi, etc.)
+│   └── images/icons/                      # Custom medical icons (lungs, oxygen, bmi, encounter, etc.)
+├── playstore-assets/                      # App store marketing graphics & 512x512 logo
+├── icons/                                 # Alternate branding & app icon designs
 ├── android/
 │   ├── app/src/main/AndroidManifest.xml   # Contains CallbackActivity with scheme clarity.kiddos.app
 │   └── app/build.gradle                   # Android configuration & dependencies
 ├── test/
-│   └── widget_test.dart                   # Default widget test template (needs update)
-├── application.md                         # SMART App / FHIR IG / App store registration metadata
+│   └── widget_test.dart                   # Smoke & widget tests (verifies MainApp auth screen)
+├── IMPROVEMENTS.md                        # Strategic architecture, security, and feature roadmap
+├── README.md                              # Public project documentation & overview
+├── flutter_launcher_icons.yaml            # Launcher icon generation configuration
 ├── analysis_options.yaml                  # Linter configuration (package:flutter_lints/flutter.yaml)
 └── pubspec.yaml                           # Project dependencies and asset definitions
 ```
@@ -101,7 +108,8 @@ Welcome to the **Clarity** codebase. This guide is tailored for AI agents and hu
 | `fl_chart` | `^1.1.1` | Charting & medical data visualization |
 | `logger` | `^2.6.2` | Structured debugging and logging |
 | `intl` | `^0.20.2` | Date/time parsing and formatting |
-| `flutter_lints` | `^6.0.0` | Recommended static analysis rules |
+| `flutter_lints` | `^6.0.0` | Recommended static analysis rules (dev) |
+| `flutter_launcher_icons`| `^0.14.4` | App icon generation across platforms (dev) |
 
 ---
 
@@ -110,7 +118,7 @@ Welcome to the **Clarity** codebase. This guide is tailored for AI agents and hu
 ### Supported FHIR R4 Resources
 - **Patient**: Demographic profile (name, birthDate, age calculation).
 - **Practitioner**: User identity parsed from the `id_token` `fhirUser` claim.
-- **Observation**: Vital signs and laboratory results.
+- **Observation**: Vital signs and laboratory results (`category=vital-signs` or `category=laboratory`).
 - **Encounter**: Clinical encounters, consultation types, and timeline status.
 - **Condition**: Diagnoses, clinical status (`active`, `resolved`), severity.
 - **MedicationRequest**: Prescriptions, status (`active`, etc.), dosage instructions.
@@ -136,9 +144,10 @@ Welcome to the **Clarity** codebase. This guide is tailored for AI agents and hu
 
 ### 1. FHIR Querying & Pagination Pattern
 Sub-pages (`patient_lab_page.dart`, `patient_condition_page.dart`, etc.) follow a standard pagination pattern:
-- **Initial Request:** `${requestUrl}/<Resource>?patient=$patient&_sort=-date&_count=10`
+- **Initial Request:** `${requestUrl}/<Resource>?patient=$patient&_count=10` (with resource-specific sorting, e.g. `_sort=-date` or `_sort=-authoredon`).
 - **Next Page Extraction:** Inspect the FHIR Bundle's `link` array for `relation == 'next'`.
 - **Infinite Scrolling:** Implemented using `ScrollController.addListener()` checking for `pixels >= maxScrollExtent * 0.9`.
+- **Dual Use of `PatientObservationPage`:** `patient_lab_page.dart` exports `PatientObservationPage`, which renders both Laboratory Results (`category=laboratory`) and Vital Signs (`category=vital-signs`).
 
 ### 2. State Management & Navigation
 - Currently uses standard Flutter `StatefulWidget` and `setState()`.
@@ -149,7 +158,11 @@ Sub-pages (`patient_lab_page.dart`, `patient_condition_page.dart`, etc.) follow 
 - Avoid `print()`. Use the centralized `log` instance from `lib/log.dart` (`log.i`, `log.w`, `log.e`).
 - All asynchronous network calls are wrapped in `try/catch` with fallback handling.
 
-### 4. UI / Theming
+### 4. Protected Health Information (PHI) Safeguards
+- **Never commit real patient data** or live credentials to test mocks or fixtures.
+- **Avoid logging tokens:** Do not log Bearer `access_token`, `refresh_token`, or complete JWT `id_token` in production logs.
+
+### 5. UI / Theming
 - Follows Material 3 guidelines (`useMaterial3: true`).
 - App theme seed color: `Colors.teal`.
 - Detail cards and list items use light green/indigo/teal badges for status representation.
@@ -170,10 +183,10 @@ flutter pub get
 
 ### Static Analysis & Testing
 ```bash
-# Analyze code for lint errors and warnings
+# Analyze code for lint errors and warnings (Must be clean: 0 issues)
 flutter analyze
 
-# Run unit and widget tests
+# Run unit and widget tests (Must pass: 100%)
 flutter test
 ```
 
@@ -195,11 +208,14 @@ flutter build appbundle --release
 ## 8. Known Issues & Notes for Agents
 
 1. **`test/widget_test.dart` Status**:
-   - The default `test/widget_test.dart` is currently boilerplate from the default Flutter template referencing `MyApp()` (which does not exist; the actual class is `MainApp`). Running `flutter test` will fail unless this test is updated or replaced with valid widget tests.
+   - `test/widget_test.dart` has been updated to test `MainApp` using `SharedPreferences.setMockInitialValues({})` and verifies that the initial authentication screen renders properly. All tests pass cleanly.
+   - When adding new widget tests, remember to mock `SharedPreferences` and avoid direct network HTTP calls in the test environment.
 2. **Deep Linking Scheme**:
    - Android OAuth callback is handled via `clarity.kiddos.app://callback`. If testing OAuth locally on Android, verify that `AndroidManifest.xml` retains the `CallbackActivity` definition.
 3. **FHIR Model vs. Raw JSON**:
    - `patient_profile_page.dart` uses typed `fhir` package classes (`Patient`, `Practitioner`, `Observation`, `Encounter`, `Bundle`).
    - Several sub-pages (`patient_lab_page.dart`, `patient_medication_page.dart`, etc.) parse FHIR Bundles as raw `Map<String, dynamic>`. When refactoring, consider standardizing to either the `fhir` R4 model classes or robust typed DTOs.
-4. **Token Refresh**:
-   - `offline_access` is included in the requested OAuth scopes, but token refresh logic (`refresh_token`) is not yet implemented. Keep this in mind when session expiry issues arise.
+4. **Token Refresh & PKCE**:
+   - `offline_access` is included in the requested OAuth scopes, but token refresh logic (`refresh_token`) and PKCE are not yet implemented. Refer to [IMPROVEMENTS.md](IMPROVEMENTS.md) for the roadmap and implementation guidelines.
+5. **Observation Queries on Startup**:
+   - `PatientProfilePage` issues individual HTTP requests for 10 LOINC codes concurrently. A recommended enhancement in [IMPROVEMENTS.md](IMPROVEMENTS.md) is combining them into a comma-delimited `code` query (or FHIR `_include` / Batch bundle).
